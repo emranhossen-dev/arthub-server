@@ -86,12 +86,23 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/artworks/:id - Update existing artwork details (Edit API)
+// PUT /api/artworks/:id - Update existing artwork details
 router.put('/:id', async (req, res) => {
   try {
     const updatedArtwork = await Artwork.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updatedArtwork) return res.status(404).json({ message: 'Artwork not found' });
     res.json({ message: 'Artwork updated successfully!', artwork: updatedArtwork });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /api/artworks/:id - Delete artwork from MongoDB
+router.delete('/:id', async (req, res) => {
+  try {
+    const deletedArtwork = await Artwork.findByIdAndDelete(req.params.id);
+    if (!deletedArtwork) return res.status(404).json({ message: 'Artwork not found' });
+    res.json({ message: 'Artwork deleted successfully!' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
