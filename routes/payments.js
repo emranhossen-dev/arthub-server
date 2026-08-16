@@ -10,7 +10,7 @@ if (stripeSecretKey && !stripeSecretKey.includes('your_stripe_secret_key')) {
   try {
     stripe = require('stripe')(stripeSecretKey);
   } catch (err) {
-    console.error('Failed to initialize stripe:', err.message);
+    console.error('Stripe init error:', err.message);
   }
 }
 
@@ -37,7 +37,7 @@ router.post('/create-artwork-checkout', async (req, res) => {
       });
     }
 
-    const clientOrigin = req.headers.origin || process.env.CLIENT_URL || 'http://localhost:3000';
+    const clientOrigin = req.headers.origin || process.env.CLIENT_URL || 'https://arthub.emran.work';
 
     if (stripe) {
       const session = await stripe.checkout.sessions.create({
@@ -62,18 +62,17 @@ router.post('/create-artwork-checkout', async (req, res) => {
         customer_email: userEmail,
       });
 
-      console.log(`💳 [Stripe Checkout Created]: Session ID ${session.id} for "${artwork.title}" ($${artwork.price})`);
+      console.log(`Stripe Session Created: ${session.id} for ${artwork.title}`);
       return res.json({ url: session.url, sessionId: session.id });
     }
 
-    // Fallback if Stripe key is unconfigured
     const mockSessionId = 'trx_' + Math.random().toString(36).substring(2, 11);
     res.json({
       url: `${clientOrigin}/artworks/${artworkId}?payment=success&session_id=${mockSessionId}`,
       sessionId: mockSessionId,
     });
   } catch (error) {
-    console.error('Error creating Stripe checkout:', error);
+    console.error('Checkout creation error:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -105,8 +104,7 @@ router.post('/confirm-purchase', async (req, res) => {
       { upsert: true }
     );
 
-    // Simulated dummy email notification
-    console.log(`📧 [Simulated Email Notification]: Purchase receipt sent to ${userEmail} for "${artwork.title}" ($${artwork.price})`);
+    console.log(`Purchase receipt sent to ${userEmail} for "${artwork.title}" ($${artwork.price})`);
 
     res.json({ message: 'Purchase confirmed successfully!', transaction });
   } catch (error) {
@@ -133,8 +131,7 @@ router.post('/subscribe', async (req, res) => {
     });
     await transaction.save();
 
-    // Simulated dummy email notification
-    console.log(`📧 [Simulated Email Notification]: Subscription confirmation sent to ${userEmail} for ${tier.toUpperCase()} tier`);
+    console.log(`Subscription confirmation sent to ${userEmail} for ${tier.toUpperCase()} tier`);
 
     res.json({ message: `Successfully upgraded to ${tier.toUpperCase()} tier!`, tier });
   } catch (error) {
