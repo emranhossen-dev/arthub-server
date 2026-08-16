@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Artwork = require('../models/Artwork');
+const User = require('../models/User');
 
 // Initial seed artworks if database collection is empty
 const initialSeedArtworks = [
@@ -36,14 +37,57 @@ const initialSeedArtworks = [
   },
 ];
 
+// GET /api/artworks/wishlist/:userEmail - Fetch user's wishlist artworks
+router.get('/wishlist/:userEmail', async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.params.userEmail });
+    if (!user || !user.wishlist || user.wishlist.length === 0) {
+      return res.json({ wishlist: [], artworks: [] });
+    }
+    const artworks = await Artwork.find({ _id: { $in: user.wishlist } });
+    res.json({ wishlist: user.wishlist, artworks });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/artworks/wishlist/toggle - Add/remove artwork from user's wishlist
+router.post('/wishlist/toggle', async (req, res) => {
+  try {
+    const { userEmail, artworkId } = req.body;
+    if (!userEmail || !artworkId) {
+      return res.status(400).json({ message: 'User email and artwork ID required' });
+    }
+    let user = await User.findOne({ email: userEmail });
+    if (!user) {
+      user = new User({ name: 'User', email: userEmail, wishlist: [artworkId] });
+      await user.save();
+      return res.json({ message: 'Added to wishlist', wishlist: user.wishlist, isWishlisted: true });
+    }
+
+    const exists = user.wishlist.includes(artworkId);
+    if (exists) {
+      user.wishlist = user.wishlist.filter((id) => id !== artworkId);
+    } else {
+      user.wishlist.push(artworkId);
+    }
+    await user.save();
+    res.json({
+      message: exists ? 'Removed from wishlist' : 'Added to wishlist',
+      wishlist: user.wishlist,
+      isWishlisted: !exists,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET /api/artworks - Fetch all available artworks with Search, Filter & Pagination
 router.get('/', async (req, res) => {
   try {
-    // Auto-seed initial demo artworks if MongoDB collection is completely empty
     const totalInDb = await Artwork.countDocuments();
     if (totalInDb === 0) {
       await Artwork.insertMany(initialSeedArtworks);
-      console.log('🌱 Auto-seeded initial artworks into ArtHub MongoDB database!');
     }
 
     const { search, category, minPrice, maxPrice, sort, page = 1, limit = 8 } = req.query;
@@ -96,7 +140,6 @@ router.get('/', async (req, res) => {
       totalArtworks,
     });
   } catch (error) {
-    console.error('Error fetching artworks:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -133,7 +176,6 @@ router.post('/', async (req, res) => {
     });
 
     await newArtwork.save();
-    console.log(`[POST /api/artworks] Created artwork: ${title}`);
     res.status(201).json({ message: 'Artwork created successfully!', artwork: newArtwork });
   } catch (error) {
     res.status(500).json({ message: error.message });

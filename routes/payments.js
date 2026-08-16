@@ -65,6 +65,9 @@ router.post('/confirm-purchase', async (req, res) => {
       { upsert: true }
     );
 
+    // Simulated dummy email notification
+    console.log(`📧 [Simulated Email Notification]: Purchase receipt sent to ${userEmail} for "${artwork.title}" ($${artwork.price})`);
+
     res.json({ message: 'Purchase confirmed successfully!', transaction });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -89,6 +92,9 @@ router.post('/subscribe', async (req, res) => {
       amount: price,
     });
     await transaction.save();
+
+    // Simulated dummy email notification
+    console.log(`📧 [Simulated Email Notification]: Subscription confirmation sent to ${userEmail} for ${tier.toUpperCase()} tier`);
 
     res.json({ message: `Successfully upgraded to ${tier.toUpperCase()} tier!`, tier });
   } catch (error) {
