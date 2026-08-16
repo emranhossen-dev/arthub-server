@@ -2,48 +2,101 @@ const express = require('express');
 const router = express.Router();
 const Artwork = require('../models/Artwork');
 
-// GET /api/artworks - Fetch all available artworks
+// Initial seed artworks if database collection is empty
+const initialSeedArtworks = [
+  {
+    title: 'Cosmic Odyssey',
+    description: 'A breathtaking digital artwork exploring infinite space and neon nebula colors.',
+    price: 250,
+    category: 'Digital',
+    imageUrl: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'admin@arthub.com',
+    artistName: 'Elena Rostova',
+    status: 'available',
+  },
+  {
+    title: 'Neon Horizon',
+    description: 'Original acrylic on canvas with vibrant sunset gradient layers and textured strokes.',
+    price: 180,
+    category: 'Painting',
+    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'artist@arthub.com',
+    artistName: 'Marco Bellini',
+    status: 'available',
+  },
+  {
+    title: 'Ethereal Waves',
+    description: 'Fine art long exposure photograph capturing ocean tide reflections at blue hour.',
+    price: 320,
+    category: 'Photography',
+    imageUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'artist@arthub.com',
+    artistName: 'Sophia Chen',
+    status: 'available',
+  },
+];
+
+// GET /api/artworks - Fetch all available artworks with Search, Filter & Pagination
 router.get('/', async (req, res) => {
   try {
+    // Auto-seed initial demo artworks if MongoDB collection is completely empty
+    const totalInDb = await Artwork.countDocuments();
+    if (totalInDb === 0) {
+      await Artwork.insertMany(initialSeedArtworks);
+      console.log('🌱 Auto-seeded initial artworks into ArtHub MongoDB database!');
+    }
+
     const { search, category, minPrice, maxPrice, sort, page = 1, limit = 8 } = req.query;
 
-    let query = { status: 'available' };
+    let query = { status: { $ne: 'sold' } };
 
-    if (search) {
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { artistName: { $regex: search, $options: 'i' } },
+        { title: searchRegex },
+        { artistName: searchRegex },
+        { category: searchRegex },
+        { description: searchRegex },
       ];
     }
 
-    if (category) {
-      query.category = category;
+    if (category && category.trim() !== '') {
+      query.category = { $regex: new RegExp(category.trim(), 'i') };
     }
 
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
+    if (minPrice && minPrice.trim() !== '' && !isNaN(Number(minPrice))) {
+      query.price = query.price || {};
+      query.price.$gte = Number(minPrice);
+    }
+
+    if (maxPrice && maxPrice.trim() !== '' && !isNaN(Number(maxPrice))) {
+      query.price = query.price || {};
+      query.price.$lte = Number(maxPrice);
     }
 
     let sortOptions = { createdAt: -1 };
     if (sort === 'price-low') sortOptions = { price: 1 };
     if (sort === 'price-high') sortOptions = { price: -1 };
+    if (sort === 'newest') sortOptions = { createdAt: -1 };
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const pageNum = Math.max(Number(page) || 1, 1);
+    const limitNum = Math.max(Number(limit) || 8, 1);
+    const skip = (pageNum - 1) * limitNum;
+
     const totalArtworks = await Artwork.countDocuments(query);
     const artworks = await Artwork.find(query)
       .sort(sortOptions)
       .skip(skip)
-      .limit(Number(limit));
+      .limit(limitNum);
 
     res.json({
       artworks,
-      totalPages: Math.ceil(totalArtworks / Number(limit)),
-      currentPage: Number(page),
+      totalPages: Math.ceil(totalArtworks / limitNum) || 1,
+      currentPage: pageNum,
       totalArtworks,
     });
   } catch (error) {
+    console.error('Error fetching artworks:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -59,7 +112,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/artworks - Create new artwork
+// POST /api/artworks - Create new artwork in MongoDB
 router.post('/', async (req, res) => {
   try {
     const { title, description, price, category, imageUrl, artistEmail, artistName } = req.body;
@@ -80,6 +133,7 @@ router.post('/', async (req, res) => {
     });
 
     await newArtwork.save();
+    console.log(`[POST /api/artworks] Created artwork: ${title}`);
     res.status(201).json({ message: 'Artwork created successfully!', artwork: newArtwork });
   } catch (error) {
     res.status(500).json({ message: error.message });

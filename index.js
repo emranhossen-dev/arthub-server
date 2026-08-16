@@ -26,9 +26,9 @@ app.get('/', (req, res) => {
 const uri = process.env.MONGODB_URI;
 
 mongoose
-  .connect(uri)
+  .connect(uri, { dbName: 'ArtHub' })
   .then(() => {
-    console.log('✅ Connected to MongoDB Database!');
+    console.log('✅ Connected to MongoDB Database (ArtHub)!');
     app.listen(port, () => {
       console.log(`🚀 Server listening on port ${port}`);
     });
