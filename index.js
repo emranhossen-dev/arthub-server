@@ -4,23 +4,25 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 const artworkRoutes = require('./routes/artworks');
+const commentRoutes = require('./routes/comments');
+const paymentRoutes = require('./routes/payments');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// API Routes
 app.use('/api/artworks', artworkRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
 
-// Root API Endpoint
 app.get('/', (req, res) => {
   res.send('🎨 ArtHub API Server is Running!');
 });
 
-// MongoDB Connection
 const uri = process.env.MONGODB_URI;
 
 mongoose
