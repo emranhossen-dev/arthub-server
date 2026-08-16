@@ -4,6 +4,16 @@ const Artwork = require('../models/Artwork');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+let stripe = null;
+if (stripeSecretKey && !stripeSecretKey.includes('your_stripe_secret_key')) {
+  try {
+    stripe = require('stripe')(stripeSecretKey);
+  } catch (err) {
+    console.error('Failed to initialize stripe:', err.message);
+  }
+}
+
 router.post('/create-artwork-checkout', async (req, res) => {
   try {
     const { artworkId, userEmail } = req.body;
@@ -27,13 +37,43 @@ router.post('/create-artwork-checkout', async (req, res) => {
       });
     }
 
-    const mockSessionId = 'trx_' + Math.random().toString(36).substring(2, 11);
+    const clientOrigin = req.headers.origin || process.env.CLIENT_URL || 'http://localhost:3000';
 
+    if (stripe) {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: artwork.title,
+                description: artwork.description || `${artwork.category} artwork by ${artwork.artistName}`,
+                images: [artwork.imageUrl],
+              },
+              unit_amount: Math.round(artwork.price * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${clientOrigin}/artworks/${artworkId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${clientOrigin}/artworks/${artworkId}?payment=cancelled`,
+        customer_email: userEmail,
+      });
+
+      console.log(`💳 [Stripe Checkout Created]: Session ID ${session.id} for "${artwork.title}" ($${artwork.price})`);
+      return res.json({ url: session.url, sessionId: session.id });
+    }
+
+    // Fallback if Stripe key is unconfigured
+    const mockSessionId = 'trx_' + Math.random().toString(36).substring(2, 11);
     res.json({
-      url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/artworks/${artworkId}?payment=success&session_id=${mockSessionId}`,
+      url: `${clientOrigin}/artworks/${artworkId}?payment=success&session_id=${mockSessionId}`,
       sessionId: mockSessionId,
     });
   } catch (error) {
+    console.error('Error creating Stripe checkout:', error);
     res.status(500).json({ message: error.message });
   }
 });
