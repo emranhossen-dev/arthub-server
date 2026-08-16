@@ -3,7 +3,6 @@ const router = express.Router();
 const Artwork = require('../models/Artwork');
 const User = require('../models/User');
 
-// Initial seed artworks if database collection is empty
 const initialSeedArtworks = [
   {
     title: 'Cosmic Odyssey',
@@ -35,9 +34,38 @@ const initialSeedArtworks = [
     artistName: 'Sophia Chen',
     status: 'available',
   },
+  {
+    title: 'Marble Serenity',
+    description: 'Contemporary minimalist marble sculpture representing peace and balance.',
+    price: 450,
+    category: 'Sculpture',
+    imageUrl: 'https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'admin@arthub.com',
+    artistName: 'Lucas Vance',
+    status: 'available',
+  },
+  {
+    title: 'Abstract Harmony',
+    description: 'Modern abstract fluid art with golden leaf accents and deep indigo tones.',
+    price: 290,
+    category: 'Painting',
+    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'artist@arthub.com',
+    artistName: 'Aria Montgomery',
+    status: 'available',
+  },
+  {
+    title: 'Urban Reflection',
+    description: 'Monochrome street photography capturing architecture after midnight rain.',
+    price: 210,
+    category: 'Photography',
+    imageUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&q=80&w=1200',
+    artistEmail: 'admin@arthub.com',
+    artistName: 'David K.',
+    status: 'available',
+  },
 ];
 
-// GET /api/artworks/wishlist/:userEmail - Fetch user's wishlist artworks
 router.get('/wishlist/:userEmail', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.params.userEmail });
@@ -51,7 +79,6 @@ router.get('/wishlist/:userEmail', async (req, res) => {
   }
 });
 
-// POST /api/artworks/wishlist/toggle - Add/remove artwork from user's wishlist
 router.post('/wishlist/toggle', async (req, res) => {
   try {
     const { userEmail, artworkId } = req.body;
@@ -82,7 +109,6 @@ router.post('/wishlist/toggle', async (req, res) => {
   }
 });
 
-// GET /api/artworks - Fetch all available artworks with Search, Filter & Pagination
 router.get('/', async (req, res) => {
   try {
     const totalInDb = await Artwork.countDocuments();
@@ -92,7 +118,7 @@ router.get('/', async (req, res) => {
 
     const { search, category, minPrice, maxPrice, sort, page = 1, limit = 8 } = req.query;
 
-    let query = { status: { $ne: 'sold' } };
+    let query = {};
 
     if (search && search.trim() !== '') {
       const searchRegex = new RegExp(search.trim(), 'i');
@@ -127,11 +153,17 @@ router.get('/', async (req, res) => {
     const limitNum = Math.max(Number(limit) || 8, 1);
     const skip = (pageNum - 1) * limitNum;
 
-    const totalArtworks = await Artwork.countDocuments(query);
-    const artworks = await Artwork.find(query)
+    let totalArtworks = await Artwork.countDocuments(query);
+    let artworks = await Artwork.find(query)
       .sort(sortOptions)
       .skip(skip)
       .limit(limitNum);
+
+    // Fallback if query returns no items
+    if (artworks.length === 0 && Object.keys(query).length > 0) {
+      totalArtworks = await Artwork.countDocuments();
+      artworks = await Artwork.find().sort({ createdAt: -1 }).limit(limitNum);
+    }
 
     res.json({
       artworks,
@@ -144,7 +176,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/artworks/:id - Fetch single artwork details
 router.get('/:id', async (req, res) => {
   try {
     const artwork = await Artwork.findById(req.params.id);
@@ -155,13 +186,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/artworks - Create new artwork in MongoDB
 router.post('/', async (req, res) => {
   try {
     const { title, description, price, category, imageUrl, artistEmail, artistName } = req.body;
 
-    if (!title || !description || !price || !category || !imageUrl || !artistEmail || !artistName) {
-      return res.status(400).json({ message: 'All fields are required' });
+    if (!title || !description || !price || !category || !imageUrl) {
+      return res.status(400).json({ message: 'Missing required artwork fields.' });
     }
 
     const newArtwork = new Artwork({
@@ -170,19 +200,18 @@ router.post('/', async (req, res) => {
       price: Number(price),
       category,
       imageUrl,
-      artistEmail,
-      artistName,
+      artistEmail: artistEmail || 'artist@arthub.com',
+      artistName: artistName || 'Featured Artist',
       status: 'available',
     });
 
-    await newArtwork.save();
-    res.status(201).json({ message: 'Artwork created successfully!', artwork: newArtwork });
+    const savedArtwork = await newArtwork.save();
+    res.status(201).json({ message: 'Artwork created successfully!', artwork: savedArtwork });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// PUT /api/artworks/:id - Update existing artwork details
 router.put('/:id', async (req, res) => {
   try {
     const updatedArtwork = await Artwork.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -193,7 +222,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/artworks/:id - Delete artwork from MongoDB
 router.delete('/:id', async (req, res) => {
   try {
     const deletedArtwork = await Artwork.findByIdAndDelete(req.params.id);
